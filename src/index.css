@@ -80,3 +80,8 @@ p { line-height: 1.5; }
 .legend-line { font-size: 14px; line-height: 1.9; }
 .legend-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 7px; vertical-align: -1px; }
 .phase-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 8px; }
+
+/* Gráficas de resultados (barras) */
+.bar-row { margin: 14px 0; }
+.bar-track { height: 16px; background: #f4f4f5; border-radius: 999px; overflow: hidden; margin-top: 6px; }
+.bar-fill { height: 100%; border-radius: 999px; }

@@ -33,6 +33,9 @@ puede entrar sin iniciar sesión, y todos ven el mismo historial.
 - **Resumen:** promedio general (X.XX/5), puntos (máx. 100) y promedios 1S–5S.
 - **Historial:** filtro por área general y descarga de Excel (CSV con BOM
   UTF-8, para que los acentos se vean bien en Excel).
+- **Gráficas de resultados:** desglose en gráficas de barras del promedio por
+  área y del promedio por fase (1S–5S), con filtros por área, por mes y por
+  semana.
 - **Detalle:** panel de calificación, promedios por fase, comentarios, fotos,
   Descargar PDF y Eliminar.
 

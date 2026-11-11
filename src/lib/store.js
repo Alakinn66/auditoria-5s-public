@@ -27,6 +27,31 @@ export async function loadAudits() {
   return data
 }
 
+// Auditorías con promedios por fase (para la pantalla de gráficas).
+export async function loadAuditsWithPhases() {
+  const audits = await loadAudits()
+  if (!SUPABASE_CONFIGURED) {
+    return audits.map((a) => ({
+      ...a,
+      phases: phaseAverages((a.items || []).map((it) => it.score)),
+    }))
+  }
+  const { data: items, error } = await supabase
+    .from('audit_items')
+    .select('audit_id, s_index, score')
+  if (error) throw error
+  const byAudit = {}
+  for (const it of items || []) {
+    ;(byAudit[it.audit_id] = byAudit[it.audit_id] || []).push(it)
+  }
+  return audits.map((a) => {
+    const list = byAudit[a.id] || []
+    const scores = [[], [], [], [], []]
+    list.forEach((it) => { if (scores[it.s_index]) scores[it.s_index].push(it.score) })
+    return { ...a, phases: scores.map((s) => (s.length ? s.reduce((x, y) => x + y, 0) / s.length : null)) }
+  })
+}
+
 export async function loadAuditDetail(auditId) {
   if (!SUPABASE_CONFIGURED) {
     const found = localAudits().find((a) => a.id === auditId)

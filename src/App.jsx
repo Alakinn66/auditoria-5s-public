@@ -6,10 +6,22 @@ import {
 import { PIN, SUPABASE_CONFIGURED } from './supabaseClient.js'
 import {
   compressImage, deleteAudit, downloadPdf, exportCsv,
-  loadAuditDetail, loadAudits, saveAudit,
+  loadAuditDetail, loadAudits, loadAuditsWithPhases, saveAudit,
 } from './lib/store.js'
 
 const DRAFT_KEY = 'auditoria5s_draft'
+
+// Semana ISO (AAAA-Snn) de una fecha, en UTC.
+function isoWeekString(d) {
+  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()))
+  const day = (date.getUTCDay() + 6) % 7
+  date.setUTCDate(date.getUTCDate() - day + 3)
+  const firstThursday = new Date(Date.UTC(date.getUTCFullYear(), 0, 4))
+  const fday = (firstThursday.getUTCDay() + 6) % 7
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - fday + 3)
+  const week = 1 + Math.round((date - firstThursday) / (7 * 24 * 3600 * 1000))
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, '0')}`
+}
 
 function emptyDraft() {
   return {
@@ -76,6 +88,11 @@ export default function App() {
   const [filterArea, setFilterArea] = useState('')
   const [saving, setSaving] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [chartRows, setChartRows] = useState(null)
+  const [chartArea, setChartArea] = useState('')
+  const [chartMode, setChartMode] = useState('all') // all | month | week
+  const [chartMonth, setChartMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [chartWeek, setChartWeek] = useState(() => isoWeekString(new Date()))
 
   const refreshAudits = async () => {
     setLoading(true)
@@ -107,6 +124,39 @@ export default function App() {
     () => (filterArea ? audits.filter((a) => a.area === filterArea) : audits),
     [audits, filterArea],
   )
+
+  async function openCharts() {
+    setScreen('charts')
+    setBusy(true)
+    setError('')
+    try { setChartRows(await loadAuditsWithPhases()) } catch (e) { setError(e.message || 'No se pudieron cargar las gráficas.') }
+    setBusy(false)
+  }
+
+  const chartFiltered = useMemo(() => {
+    if (!chartRows) return []
+    return chartRows.filter((a) => {
+      if (chartArea && a.area !== chartArea) return false
+      if (chartMode === 'month' && String(a.created_at).slice(0, 7) !== chartMonth) return false
+      if (chartMode === 'week' && isoWeekString(new Date(a.created_at)) !== chartWeek) return false
+      return true
+    })
+  }, [chartRows, chartArea, chartMode, chartMonth, chartWeek])
+
+  const chartStats = useMemo(() => {
+    if (!chartFiltered.length) return null
+    const avg = chartFiltered.reduce((s, a) => s + Number(a.average), 0) / chartFiltered.length
+    const byArea = {}
+    chartFiltered.forEach((a) => { ;(byArea[a.area] = byArea[a.area] || []).push(Number(a.average)) })
+    const perArea = Object.entries(byArea)
+      .map(([area, vals]) => ({ area, avg: vals.reduce((x, y) => x + y, 0) / vals.length, n: vals.length }))
+      .sort((x, y) => y.avg - x.avg)
+    const phases = [0, 1, 2, 3, 4].map((i) => {
+      const vals = chartFiltered.map((a) => (a.phases ? a.phases[i] : null)).filter((v) => v !== null && v !== undefined)
+      return vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : null
+    })
+    return { avg, total: chartFiltered.length, perArea, phases, best: perArea[0] }
+  }, [chartFiltered])
 
   const areas = useMemo(() => [...new Set(audits.map((a) => a.area))].sort(), [audits])
 
@@ -230,6 +280,8 @@ export default function App() {
             <button className="btn btn-red" onClick={startNew}>NUEVA AUDITORÍA</button>
             <div style={{ height: 10 }} />
             <button className="btn btn-black" onClick={() => setScreen('history')}>HISTORIAL</button>
+            <div style={{ height: 10 }} />
+            <button className="btn btn-ghost" onClick={openCharts}>GRÁFICAS DE RESULTADOS</button>
             {draft && (
               <div className="card">
                 <b>Borrador en curso</b>
@@ -415,6 +467,8 @@ export default function App() {
               <button className="btn btn-black" style={{ flex: 1 }} disabled={busy || !filteredAudits.length} onClick={() => exportCsv(filteredAudits)}>Descargar Excel (CSV)</button>
               <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setScreen('home')}>Inicio</button>
             </div>
+            <div style={{ height: 10 }} />
+            <button className="btn btn-ghost" onClick={openCharts}>Ver gráficas de resultados</button>
             {loading ? <p className="muted">Cargando…</p> : filteredAudits.length === 0 ? (
               <p className="muted">Aún no hay auditorías registradas.</p>
             ) : filteredAudits.map((a) => (
@@ -426,6 +480,79 @@ export default function App() {
                 <p className="muted">{a.area} · {new Date(a.created_at).toLocaleDateString('es-MX')} · {a.auditor} · Sup. {a.supervisor}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {screen === 'charts' && (
+          <div>
+            <h1>Gráficas de resultados</h1>
+            <p className="muted">Desglose de las auditorías por área y por fase.</p>
+            <div className="field">
+              <label>Área</label>
+              <select value={chartArea} onChange={(e) => setChartArea(e.target.value)}>
+                <option value="">Todas las áreas</option>
+                {[...new Set((chartRows || []).map((a) => a.area))].sort().map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>Periodo</label>
+              <div className="row">
+                <button type="button" className={`btn ${chartMode === 'all' ? 'btn-black' : 'btn-ghost'}`} style={{ flex: 1 }} onClick={() => setChartMode('all')}>Todo</button>
+                <button type="button" className={`btn ${chartMode === 'month' ? 'btn-black' : 'btn-ghost'}`} style={{ flex: 1 }} onClick={() => setChartMode('month')}>Mes</button>
+                <button type="button" className={`btn ${chartMode === 'week' ? 'btn-black' : 'btn-ghost'}`} style={{ flex: 1 }} onClick={() => setChartMode('week')}>Semana</button>
+              </div>
+            </div>
+            {chartMode === 'month' && (
+              <div className="field">
+                <label>Mes</label>
+                <input type="month" value={chartMonth} onChange={(e) => setChartMonth(e.target.value)} />
+              </div>
+            )}
+            {chartMode === 'week' && (
+              <div className="field">
+                <label>Semana</label>
+                <input type="week" value={chartWeek} onChange={(e) => setChartWeek(e.target.value)} />
+              </div>
+            )}
+            {busy ? <p className="muted">Cargando…</p> : !chartStats ? (
+              <p className="muted">No hay auditorías para ese filtro.</p>
+            ) : (
+              <div>
+                <div className="stat-grid">
+                  <div className="stat"><b>{chartStats.total}</b><span>Auditorías</span></div>
+                  <div className="stat"><b>{chartStats.avg.toFixed(2)}</b><span>Promedio general</span></div>
+                  <div className="stat"><b>{chartStats.best.area}</b><span>Mejor área</span></div>
+                </div>
+                <h2>Promedio por área</h2>
+                {chartStats.perArea.map((r) => (
+                  <div className="bar-row" key={r.area}>
+                    <div className="row space-between">
+                      <span>{r.area}</span>
+                      <b>{r.avg.toFixed(2)} / 5 · {r.n} aud.</b>
+                    </div>
+                    <div className="bar-track">
+                      <div className="bar-fill" style={{ width: `${(r.avg / 5) * 100}%`, background: SCORE_COLORS[Math.max(0, Math.min(5, Math.round(r.avg)))] }} />
+                    </div>
+                  </div>
+                ))}
+                <h2>Promedio por fase (1S–5S)</h2>
+                {PHASES.map((p, i) => (
+                  <div className="bar-row" key={p.key}>
+                    <div className="row space-between">
+                      <span>{p.name}</span>
+                      <b>{chartStats.phases[i] === null ? '—' : `${chartStats.phases[i].toFixed(2)} / 5`}</b>
+                    </div>
+                    <div className="bar-track">
+                      <div className="bar-fill" style={{ width: `${((chartStats.phases[i] || 0) / 5) * 100}%`, background: p.color }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ height: 12 }} />
+            <button className="btn btn-ghost" onClick={() => setScreen('home')}>Volver al inicio</button>
           </div>
         )}
 
