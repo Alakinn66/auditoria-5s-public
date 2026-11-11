@@ -537,6 +537,31 @@ export default function App() {
                     </div>
                   </div>
                 ))}
+                <h2>Comparativa entre áreas</h2>
+                <p className="muted">De mejor a peor promedio en el periodo filtrado.</p>
+                {chartStats.perArea.map((r, idx) => {
+                  const delta = r.avg - chartStats.avg
+                  const isBest = idx === 0
+                  const isWorst = idx === chartStats.perArea.length - 1 && chartStats.perArea.length > 1
+                  return (
+                    <div className="card" key={r.area}>
+                      <div className="row space-between">
+                        <span><b>{idx + 1}. {r.area}</b></span>
+                        <span>
+                          {isBest && <span className="rank-badge rank-best">Mejor</span>}
+                          {isWorst && <span className="rank-badge rank-worst">A revisar</span>}
+                          <b style={{ color: SCORE_COLORS[Math.max(0, Math.min(5, Math.round(r.avg)))] }}>{r.avg.toFixed(2)} / 5</b>
+                        </span>
+                      </div>
+                      <p className="muted" style={{ margin: '6px 0 0' }}>
+                        {r.n} {r.n === 1 ? 'auditoría' : 'auditorías'} · {delta >= 0 ? '+' : ''}{delta.toFixed(2)} vs. el promedio general ({chartStats.avg.toFixed(2)})
+                      </p>
+                      <div className="bar-track">
+                        <div className="bar-fill" style={{ width: `${(r.avg / 5) * 100}%`, background: SCORE_COLORS[Math.max(0, Math.min(5, Math.round(r.avg)))] }} />
+                      </div>
+                    </div>
+                  )
+                })}
                 <h2>Promedio por fase (1S–5S)</h2>
                 {PHASES.map((p, i) => (
                   <div className="bar-row" key={p.key}>

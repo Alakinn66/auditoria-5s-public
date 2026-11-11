@@ -85,3 +85,6 @@ p { line-height: 1.5; }
 .bar-row { margin: 14px 0; }
 .bar-track { height: 16px; background: #f4f4f5; border-radius: 999px; overflow: hidden; margin-top: 6px; }
 .bar-fill { height: 100%; border-radius: 999px; }
+.rank-badge { display: inline-block; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; margin-right: 8px; vertical-align: 1px; }
+.rank-best { background: #dcfce7; color: #15803d; }
+.rank-worst { background: #fee2e2; color: #b91c1c; }
