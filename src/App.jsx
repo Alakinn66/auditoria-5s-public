@@ -151,11 +151,19 @@ export default function App() {
     const perArea = Object.entries(byArea)
       .map(([area, vals]) => ({ area, avg: vals.reduce((x, y) => x + y, 0) / vals.length, n: vals.length }))
       .sort((x, y) => y.avg - x.avg)
+    const bySub = {}
+    chartFiltered.forEach((a) => {
+      const entry = (bySub[a.sub_area] = bySub[a.sub_area] || { area: a.area, vals: [] })
+      entry.vals.push(Number(a.average))
+    })
+    const perSubArea = Object.entries(bySub)
+      .map(([subArea, v]) => ({ subArea, area: v.area, avg: v.vals.reduce((x, y) => x + y, 0) / v.vals.length, n: v.vals.length }))
+      .sort((x, y) => y.avg - x.avg)
     const phases = [0, 1, 2, 3, 4].map((i) => {
       const vals = chartFiltered.map((a) => (a.phases ? a.phases[i] : null)).filter((v) => v !== null && v !== undefined)
       return vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : null
     })
-    return { avg, total: chartFiltered.length, perArea, phases, best: perArea[0] }
+    return { avg, total: chartFiltered.length, perArea, perSubArea, phases, best: perArea[0] }
   }, [chartFiltered])
 
   const areas = useMemo(() => [...new Set(audits.map((a) => a.area))].sort(), [audits])
@@ -537,16 +545,16 @@ export default function App() {
                     </div>
                   </div>
                 ))}
-                <h2>Comparativa entre áreas</h2>
+                <h2>Comparativa entre subáreas</h2>
                 <p className="muted">De mejor a peor promedio en el periodo filtrado.</p>
-                {chartStats.perArea.map((r, idx) => {
+                {chartStats.perSubArea.map((r, idx) => {
                   const delta = r.avg - chartStats.avg
                   const isBest = idx === 0
-                  const isWorst = idx === chartStats.perArea.length - 1 && chartStats.perArea.length > 1
+                  const isWorst = idx === chartStats.perSubArea.length - 1 && chartStats.perSubArea.length > 1
                   return (
-                    <div className="card" key={r.area}>
+                    <div className="card" key={r.subArea}>
                       <div className="row space-between">
-                        <span><b>{idx + 1}. {r.area}</b></span>
+                        <span><b>{idx + 1}. {r.subArea}</b> <span className="muted">· {r.area}</span></span>
                         <span>
                           {isBest && <span className="rank-badge rank-best">Mejor</span>}
                           {isWorst && <span className="rank-badge rank-worst">A revisar</span>}
