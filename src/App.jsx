@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  CRITERIA, FOOTER, PHASES, SCORE_HINTS, SUBAREAS, SUPERVISORS,
+  CRITERIA, FOOTER, PHASES, PHASE_SIZES, SCORE_COLORS, SCORE_HINTS, SUBAREAS, SUPERVISORS,
   phaseAverages, totalAverage,
 } from './data/catalog.js'
 import { PIN, SUPABASE_CONFIGURED } from './supabaseClient.js'
@@ -47,6 +47,9 @@ function ScoreButtons({ value, onChange }) {
             <button
               type="button"
               className={`score-btn${value === n ? ' selected' : ''}`}
+              style={value === n
+                ? { background: SCORE_COLORS[n], borderColor: SCORE_COLORS[n], color: n === 3 ? '#18181b' : '#fff' }
+                : { borderColor: SCORE_COLORS[n], color: SCORE_COLORS[n] }}
               onClick={() => onChange(n)}
               aria-label={`${n} - ${SCORE_HINTS[n]}`}
             >{n}</button>
@@ -237,10 +240,30 @@ export default function App() {
             <h2>LAS 5 S</h2>
             {PHASES.map((p, i) => (
               <div className="card" key={p.key}>
-                <b>{p.name}</b>
-                <p className="muted">{CRITERIA.filter((c) => c.phase === i).map((c) => c.title).join(' · ')}</p>
+                <div className="phase-row">
+                  <span className="phase-num" style={{ color: p.color }}>{p.short}</span>
+                  <span>
+                    <span className="phase-name">{p.label}</span>
+                    <span className="phase-desc">{p.desc}</span>
+                  </span>
+                  <span className="phase-count">{PHASE_SIZES[i]} CRITERIOS</span>
+                </div>
               </div>
             ))}
+            <div className="card">
+              <b>SISTEMA DE PUNTAJE</b>
+              <p style={{ margin: '8px 0 0' }}>0 a 5 puntos por criterio.<br />Puntaje máximo posible: 100 puntos. La calificación general es el promedio de 20 criterios.</p>
+              <div className="score-boxes">
+                {[0, 1, 2, 3, 4, 5].map((n) => (
+                  <span key={n} className={`score-box${n === 3 ? ' yellow' : ''}`} style={{ background: SCORE_COLORS[n] }}>{n}</span>
+                ))}
+              </div>
+              <div className="legend-line">
+                <span className="legend-dot" style={{ background: '#1d4ed8' }} />Verde/Azul = Excelente (5)<br />
+                <span className="legend-dot" style={{ background: '#eab308' }} />Amarillo = Aceptable (3-4)<br />
+                <span className="legend-dot" style={{ background: '#dc2626' }} />Rojo = Necesita mejora (0-2)
+              </div>
+            </div>
             {stats.perArea.length > 0 && (
               <div>
                 <h2>Auditorías por área</h2>
@@ -305,7 +328,7 @@ export default function App() {
         {screen === 'question' && draft && (
           <div>
             <div className="row space-between">
-              <span className="phase-tag">{PHASES[CRITERIA[qIndex].phase].name}</span>
+              <span className="phase-tag" style={{ background: PHASES[CRITERIA[qIndex].phase].color }}>{PHASES[CRITERIA[qIndex].phase].name}</span>
               <span className="muted">{qIndex + 1} de 20</span>
             </div>
             <div className="progress"><div style={{ width: `${((qIndex + 1) / 20) * 100}%` }} /></div>
@@ -365,7 +388,7 @@ export default function App() {
             </div>
             <table className="phase-table"><tbody>
               {PHASES.map((p, i) => (
-                <tr key={p.key}><td>{p.name}</td><td>{draftPhases[i] === null ? '—' : draftPhases[i].toFixed(2)}</td></tr>
+                <tr key={p.key}><td><span className="phase-dot" style={{ background: p.color }} />{p.name}</td><td>{draftPhases[i] === null ? '—' : draftPhases[i].toFixed(2)}</td></tr>
               ))}
             </tbody></table>
             <p className="muted">{draft.items.filter((it) => it.score !== null).length}/20 criterios calificados · {draft.items.reduce((a, it) => a + (it.photos || []).length, 0)} fotos</p>
@@ -418,14 +441,14 @@ export default function App() {
             <table className="phase-table"><tbody>
               {PHASES.map((p, i) => {
                 const phases = phaseAverages(detail.items.map((it) => it.score))
-                return <tr key={p.key}><td>{p.name}</td><td>{phases[i] === null ? '—' : phases[i].toFixed(2)}</td></tr>
+                return <tr key={p.key}><td><span className="phase-dot" style={{ background: p.color }} />{p.name}</td><td>{phases[i] === null ? '—' : phases[i].toFixed(2)}</td></tr>
               })}
             </tbody></table>
             {detail.items.map((it, i) => (
               <div className="card" key={i}>
                 <div className="row space-between">
                   <b>{i + 1}. {CRITERIA[i].title}</b>
-                  <b>{it.score} / 5</b>
+                  <b style={{ color: SCORE_COLORS[it.score] }}>{it.score} / 5</b>
                 </div>
                 {it.comment && <p className="muted">{it.comment}</p>}
                 {(it.photos || []).length > 0 && (

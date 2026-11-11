@@ -51,12 +51,23 @@ export const SCORE_HINTS = {
 }
 
 export const PHASES = [
-  { key: '1S', name: '1S Seleccionar', short: '1S' },
-  { key: '2S', name: '2S Ordenar', short: '2S' },
-  { key: '3S', name: '3S Limpiar', short: '3S' },
-  { key: '4S', name: '4S Estandarizar', short: '4S' },
-  { key: '5S', name: '5S Sostener', short: '5S' },
+  { key: '1S', name: '1S Seleccionar', short: '1S', label: 'SELECCIONAR', color: '#1e3a5f', desc: 'Solo lo necesario.' },
+  { key: '2S', name: '2S Ordenar', short: '2S', label: 'ORDENAR', color: '#b91c1c', desc: 'Cada cosa en su lugar.' },
+  { key: '3S', name: '3S Limpiar', short: '3S', label: 'LIMPIAR', color: '#15803d', desc: 'Limpio y ordenado.' },
+  { key: '4S', name: '4S Estandarizar', short: '4S', label: 'ESTANDARIZAR', color: '#d97706', desc: 'Mantener y mejorar.' },
+  { key: '5S', name: '5S Sostener', short: '5S', label: 'SOSTENER', color: '#6b7280', desc: 'Disciplina y asegurar que se mantenga.' },
 ]
+
+// Color de cada calificación, igual que en la app original:
+// 0 vino, 1 rojo, 2 naranja, 3 amarillo, 4 verde, 5 azul.
+export const SCORE_COLORS = {
+  0: '#7f1d1d',
+  1: '#dc2626',
+  2: '#ea580c',
+  3: '#eab308',
+  4: '#16a34a',
+  5: '#1d4ed8',
+}
 
 // 20 criterios exactos, en orden. phase: 0..4 (1S..5S).
 export const CRITERIA = [
