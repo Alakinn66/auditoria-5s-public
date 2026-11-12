@@ -8,22 +8,37 @@ puede entrar sin iniciar sesión, y todos ven el mismo historial.
 - **Datos:** Supabase (Postgres + Storage). Tablas `audits`, `audit_items`,
   `audit_photos` y bucket público `evidencias`.
 - **Despliegue:** Vercel (plan gratuito).
-- **Acceso:** pantalla de PIN. El PIN se define con la variable de entorno
-  `VITE_APP_PIN` (sin PIN en el código).
+- **Acceso:** pantalla de PIN. Hay dos códigos, definidos con variables
+  de entorno (sin PIN en el código): `VITE_APP_PIN` es el PIN general, que
+  entra a Consultar resultados; `VITE_AUDITOR_PIN` es el PIN de auditor,
+  que entra directo a la vista Auditor. Si no se configura el PIN de
+  auditor, tras el PIN general la app pregunta qué vista quieres usar.
 
-> **Límites honestos:** el PIN es una protección ligera, no seguridad real:
-> cualquiera con el enlace y el PIN puede ver y enviar auditorías, y borrar.
-> Para privacidad real habría que usar Supabase Auth (usuarios con contraseña).
+> **Límites honestos:** los PIN son una protección ligera, no seguridad
+> real: cualquiera con el enlace y el PIN general puede consultar todo, y
+> cualquiera con el PIN de auditor puede ver, enviar auditorías y borrar.
+> Para privacidad real habría que usar Supabase Auth (usuarios con
+> contraseña).
 > Los archivos viven en Supabase Storage; el plan gratuito de Supabase tiene
 > 500 MB de base de datos y 1 GB de almacenamiento. Las fotos se comprimen a
 > un máximo de 1024 px para cuidar ese espacio.
 
 ## Qué trae la app
 
+- **Dos vistas tras el PIN:** el código que pongas al entrar decide la
+  vista, sin pantalla de selección. **Auditor** (con el PIN de auditor):
+  acceso completo para generar y capturar nuevas auditorías, retomar
+  borradores, historial, gráficas y descargas. **Consultar resultados**
+  (con el PIN general, para supervisores): solo consulta — historial,
+  gráficas y descargas de Excel/PDF; no muestra el botón de nueva
+  auditoría ni permite eliminar. Con el PIN de auditor configurado, para
+  cambiar de vista hay que salir y volver a poner el PIN. Si no se
+  configura el PIN de auditor, tras el PIN general la app pregunta qué
+  vista quieres usar y se puede cambiar con el botón "Cambiar de vista".
 - **Inicio:** total de auditorías, promedio general, auditorías por área,
   botones Nueva Auditoría / Historial y la sección LAS 5 S.
 - **Datos:** selector de Subárea (el Área general se llena sola), Auditor y
-  Supervisor (9 supervisores en catálogo).
+  Supervisor (10 supervisores en catálogo).
 - **Cuestionario:** un criterio a la vez, calificación 0–5 con la guía de
   hallazgos en gris bajo cada botón (0 "+5 de hallazgos", 1 "3 o 4 hallazgos",
   2 "1 o 2 hallazgos", 3 "0 hallazgos", 4 "Sostenido +1 mes", 5 "Sostenido
@@ -33,9 +48,9 @@ puede entrar sin iniciar sesión, y todos ven el mismo historial.
 - **Resumen:** promedio general (X.XX/5), puntos (máx. 100) y promedios 1S–5S.
 - **Historial:** filtro por área general y descarga de Excel (CSV con BOM
   UTF-8, para que los acentos se vean bien en Excel).
-- **Gráficas de resultados:** desglose en gráficas de barras del promedio por
-  área y del promedio por fase (1S–5S), comparativa entre subáreas de mejor a
-  peor con su diferencia vs. el promedio general, y filtros por área, por mes
+- **Gráficas de resultados:** una sola comparativa entre subáreas en
+  gráficas de barras simplificadas (nombre de la subárea, promedio y
+  cantidad de auditorías), de mejor a peor, con filtros por área, por mes
   y por semana.
 - **Detalle:** panel de calificación, promedios por fase, comentarios, fotos,
   Descargar PDF y Eliminar.
@@ -101,11 +116,14 @@ RLS permiten (ver, insertar y borrar auditorías). Nunca uses la clave
 1. Entra a https://vercel.com y crea una cuenta (puedes entrar con GitHub).
 2. **Add New > Project > Import** el repositorio `auditoria-5s-public`.
 3. Deja los valores por defecto (Framework: Vite). Antes de desplegar, en
-   **Environment Variables** agrega las tres variables:
+   **Environment Variables** agrega las variables:
    - `VITE_SUPABASE_URL` = la URL de tu proyecto Supabase
    - `VITE_SUPABASE_ANON_KEY` = la clave anon
-   - `VITE_APP_PIN` = el código de acceso, p. ej. `2512` (4–6 dígitos; es el
-     que compartirás con tu practicante y los supervisores)
+   - `VITE_APP_PIN` = el código general, p. ej. `2512` (4–6 dígitos; es el
+     que compartirás con los supervisores y entra a Consultar resultados)
+   - `VITE_AUDITOR_PIN` = el código de auditor, p. ej. `8741` (distinto al
+     general; solo para ti y tu practicante, entra directo a la vista
+     Auditor)
 4. Pulsa **Deploy**. En 1–2 minutos te dará el enlace, algo como
    `https://auditoria-5s-public.vercel.app`.
 5. Abre el enlace en tu celular: debe pedirte el PIN y luego mostrar el
@@ -121,21 +139,23 @@ RLS permiten (ver, insertar y borrar auditorías). Nunca uses la clave
 4. Prueba **Descargar Excel** y **Descargar PDF** en el detalle.
 5. Si todo funciona, borra la auditoría de prueba con el botón Eliminar.
 
-### 8) Cambiar el PIN
+### 8) Cambiar los PIN
 
 En Vercel: **Project > Settings > Environment Variables**, cambia
-`VITE_APP_PIN` y luego **Deployments > Redeploy**. El PIN nuevo aplica desde
-ese despliegue. El PIN viejo deja de funcionar.
+`VITE_APP_PIN` (general, consulta) o `VITE_AUDITOR_PIN` (auditor) y luego
+**Deployments > Redeploy**. El PIN nuevo aplica desde ese despliegue. El
+PIN viejo deja de funcionar.
 
 ## Cómo lo usan
 
-- **El practicante (audita):** abre el enlace en su celular, escribe el PIN,
-  **Nueva Auditoría**, elige Subárea, escribe su nombre, elige Supervisor,
+- **El practicante (audita):** abre el enlace en su celular, escribe el PIN
+  de auditor, **Nueva Auditoría**, elige Subárea, escribe su nombre, elige Supervisor,
   califica los 20 criterios con comentarios y fotos, revisa el Resumen y
   guarda.
-- **Los supervisores (consultan):** abren el mismo enlace con el PIN y van a
+- **Los supervisores (consultan):** abren el mismo enlace con el PIN
+  general, que los lleva directo a **Consultar resultados**, y van a
   **Historial**: ven todas las auditorías, filtran por área, abren el detalle
-  y descargan el PDF o el Excel.
+  y descargan el PDF o el Excel. No pueden crear ni eliminar auditorías.
 - **Tú (administras):** en Vercel ves los despliegues y cambias el PIN; en
   Supabase (Table Editor) ves y respaldas los datos. Para un respaldo rápido:
   en Supabase, **Table Editor > audits > … > Export to CSV**.

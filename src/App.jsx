@@ -3,7 +3,7 @@ import {
   CRITERIA, FOOTER, PHASES, PHASE_SIZES, SCORE_COLORS, SCORE_HINTS, SUBAREAS, SUPERVISORS,
   phaseAverages, totalAverage,
 } from './data/catalog.js'
-import { PIN, SUPABASE_CONFIGURED } from './supabaseClient.js'
+import { AUDITOR_PIN, PIN, SUPABASE_CONFIGURED } from './supabaseClient.js'
 import {
   compressImage, deleteAudit, downloadPdf, exportCsv,
   loadAuditDetail, loadAudits, loadAuditsWithPhases, saveAudit,
@@ -75,10 +75,15 @@ function ScoreButtons({ value, onChange }) {
 }
 
 export default function App() {
-  const [unlocked, setUnlocked] = useState(() => !PIN || sessionStorage.getItem('a5s_unlocked') === '1')
+  const [unlocked, setUnlocked] = useState(() => (!PIN && !AUDITOR_PIN) || sessionStorage.getItem('a5s_unlocked') === '1')
   const [pinInput, setPinInput] = useState('')
   const [pinError, setPinError] = useState('')
   const [screen, setScreen] = useState('home')
+  const [role, setRole] = useState(() => sessionStorage.getItem('a5s_role') || '')
+  const isAuditor = role === 'auditor'
+  // Cuando hay PIN de auditor, el PIN inicial decide la vista: no hay
+  // selección de vista ni cambio de vista sin volver a poner el PIN.
+  const pinRouting = Boolean(AUDITOR_PIN)
   const [audits, setAudits] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -146,11 +151,6 @@ export default function App() {
   const chartStats = useMemo(() => {
     if (!chartFiltered.length) return null
     const avg = chartFiltered.reduce((s, a) => s + Number(a.average), 0) / chartFiltered.length
-    const byArea = {}
-    chartFiltered.forEach((a) => { ;(byArea[a.area] = byArea[a.area] || []).push(Number(a.average)) })
-    const perArea = Object.entries(byArea)
-      .map(([area, vals]) => ({ area, avg: vals.reduce((x, y) => x + y, 0) / vals.length, n: vals.length }))
-      .sort((x, y) => y.avg - x.avg)
     const bySub = {}
     chartFiltered.forEach((a) => {
       const entry = (bySub[a.sub_area] = bySub[a.sub_area] || { area: a.area, vals: [] })
@@ -159,11 +159,7 @@ export default function App() {
     const perSubArea = Object.entries(bySub)
       .map(([subArea, v]) => ({ subArea, area: v.area, avg: v.vals.reduce((x, y) => x + y, 0) / v.vals.length, n: v.vals.length }))
       .sort((x, y) => y.avg - x.avg)
-    const phases = [0, 1, 2, 3, 4].map((i) => {
-      const vals = chartFiltered.map((a) => (a.phases ? a.phases[i] : null)).filter((v) => v !== null && v !== undefined)
-      return vals.length ? vals.reduce((x, y) => x + y, 0) / vals.length : null
-    })
-    return { avg, total: chartFiltered.length, perArea, perSubArea, phases, best: perArea[0] }
+    return { avg, total: chartFiltered.length, perSubArea, best: perSubArea[0] }
   }, [chartFiltered])
 
   const areas = useMemo(() => [...new Set(audits.map((a) => a.area))].sort(), [audits])
@@ -177,6 +173,16 @@ export default function App() {
   function resumeDraft() {
     setQIndex(0)
     setScreen('setup')
+  }
+
+  function handleLogout() {
+    sessionStorage.removeItem('a5s_unlocked')
+    sessionStorage.removeItem('a5s_role')
+    setRole('')
+    setScreen('home')
+    setPinInput('')
+    setPinError('')
+    setUnlocked(false)
   }
 
   function setItem(i, patch) {
@@ -228,7 +234,9 @@ export default function App() {
   }
 
   // ---- PIN gate ----
-  if (!unlocked) {
+  // Con ruteo por PIN, un desbloqueo sin rol guardado (p. ej. de antes de
+  // configurar el PIN de auditor) vuelve a pedir el PIN.
+  if (!unlocked || (pinRouting && !role)) {
     return (
       <div className="app">
         <div className="content">
@@ -251,12 +259,51 @@ export default function App() {
       </div>
     )
     function submitPin() {
-      if (pinInput === PIN) {
+      if (AUDITOR_PIN && pinInput === AUDITOR_PIN) {
         sessionStorage.setItem('a5s_unlocked', '1')
+        sessionStorage.setItem('a5s_role', 'auditor')
+        setRole('auditor')
+        setScreen('home')
+        setUnlocked(true)
+      } else if (PIN && pinInput === PIN) {
+        sessionStorage.setItem('a5s_unlocked', '1')
+        sessionStorage.setItem('a5s_role', pinRouting ? 'consulta' : '')
+        setRole(pinRouting ? 'consulta' : '')
+        setScreen('home')
         setUnlocked(true)
       } else {
         setPinError('Código incorrecto. Inténtalo de nuevo.')
       }
+    }
+  }
+
+  // ---- Selección de vista tras el PIN ----
+  // Solo cuando NO hay PIN de auditor: con ruteo por PIN el rol ya viene
+  // decidido por el código que se puso y nunca se llega aquí sin rol.
+  if (!role) {
+    return (
+      <div className="app">
+        <div className="content">
+          <h1>AUDITORÍA 5S</h1>
+          <p className="muted">Production Area Audit — Elige cómo quieres entrar.</p>
+          <div className="card">
+            <b>Auditor</b>
+            <p className="muted">Genera y captura nuevas auditorías con todos los accesos: nueva auditoría, borrador, historial, gráficas y descargas.</p>
+            <button className="btn btn-red" onClick={() => chooseRole('auditor')}>Entrar como auditor</button>
+          </div>
+          <div className="card">
+            <b>Consultar resultados</b>
+            <p className="muted">Solo consulta: ver auditorías, gráficas y descargar resultados en Excel o PDF. No permite crear nuevas auditorías ni eliminarlas.</p>
+            <button className="btn btn-black" onClick={() => chooseRole('consulta')}>Entrar a consulta</button>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
+    function chooseRole(r) {
+      sessionStorage.setItem('a5s_role', r)
+      setRole(r)
+      setScreen('home')
     }
   }
 
@@ -285,12 +332,24 @@ export default function App() {
               <div className="stat"><b>{stats.avg === null ? '—' : stats.avg.toFixed(2)}</b><span>Promedio general</span></div>
               <div className="stat"><b>{stats.perArea.length}</b><span>Áreas auditadas</span></div>
             </div>
-            <button className="btn btn-red" onClick={startNew}>NUEVA AUDITORÍA</button>
-            <div style={{ height: 10 }} />
+            {isAuditor ? (
+              <>
+                <button className="btn btn-red" onClick={startNew}>NUEVA AUDITORÍA</button>
+                <div style={{ height: 10 }} />
+              </>
+            ) : (
+              <p className="muted">Vista de consulta — solo lectura. Aquí puedes revisar auditorías, gráficas y descargar resultados.</p>
+            )}
             <button className="btn btn-black" onClick={() => setScreen('history')}>HISTORIAL</button>
             <div style={{ height: 10 }} />
             <button className="btn btn-ghost" onClick={openCharts}>GRÁFICAS DE RESULTADOS</button>
-            {draft && (
+            <div style={{ height: 10 }} />
+            {pinRouting ? (
+              <button className="btn btn-ghost" onClick={handleLogout}>Salir (volver al PIN)</button>
+            ) : (
+              <button className="btn btn-ghost" onClick={() => { sessionStorage.removeItem('a5s_role'); setRole(''); setScreen('home') }}>Cambiar de vista</button>
+            )}
+            {isAuditor && draft && (
               <div className="card">
                 <b>Borrador en curso</b>
                 <p className="muted">{draft.subArea || 'Sin subárea'} — {draft.items.filter((it) => it.score !== null).length}/20 criterios calificados</p>
@@ -494,7 +553,7 @@ export default function App() {
         {screen === 'charts' && (
           <div>
             <h1>Gráficas de resultados</h1>
-            <p className="muted">Desglose de las auditorías por área y por fase.</p>
+            <p className="muted">Comparativa de promedios por subárea.</p>
             <div className="field">
               <label>Área</label>
               <select value={chartArea} onChange={(e) => setChartArea(e.target.value)}>
@@ -531,54 +590,18 @@ export default function App() {
                 <div className="stat-grid">
                   <div className="stat"><b>{chartStats.total}</b><span>Auditorías</span></div>
                   <div className="stat"><b>{chartStats.avg.toFixed(2)}</b><span>Promedio general</span></div>
-                  <div className="stat"><b>{chartStats.best.area}</b><span>Mejor área</span></div>
+                  <div className="stat"><b>{chartStats.best.subArea}</b><span>Mejor subárea</span></div>
                 </div>
-                <h2>Promedio por área</h2>
-                {chartStats.perArea.map((r) => (
-                  <div className="bar-row" key={r.area}>
+                <h2>Comparativa entre subáreas</h2>
+                <p className="muted">De mejor a peor promedio en el periodo filtrado.</p>
+                {chartStats.perSubArea.map((r) => (
+                  <div className="bar-row" key={r.subArea}>
                     <div className="row space-between">
-                      <span>{r.area}</span>
+                      <span>{r.subArea}</span>
                       <b>{r.avg.toFixed(2)} / 5 · {r.n} aud.</b>
                     </div>
                     <div className="bar-track">
                       <div className="bar-fill" style={{ width: `${(r.avg / 5) * 100}%`, background: SCORE_COLORS[Math.max(0, Math.min(5, Math.round(r.avg)))] }} />
-                    </div>
-                  </div>
-                ))}
-                <h2>Comparativa entre subáreas</h2>
-                <p className="muted">De mejor a peor promedio en el periodo filtrado.</p>
-                {chartStats.perSubArea.map((r, idx) => {
-                  const delta = r.avg - chartStats.avg
-                  const isBest = idx === 0
-                  const isWorst = idx === chartStats.perSubArea.length - 1 && chartStats.perSubArea.length > 1
-                  return (
-                    <div className="card" key={r.subArea}>
-                      <div className="row space-between">
-                        <span><b>{idx + 1}. {r.subArea}</b> <span className="muted">· {r.area}</span></span>
-                        <span>
-                          {isBest && <span className="rank-badge rank-best">Mejor</span>}
-                          {isWorst && <span className="rank-badge rank-worst">A revisar</span>}
-                          <b style={{ color: SCORE_COLORS[Math.max(0, Math.min(5, Math.round(r.avg)))] }}>{r.avg.toFixed(2)} / 5</b>
-                        </span>
-                      </div>
-                      <p className="muted" style={{ margin: '6px 0 0' }}>
-                        {r.n} {r.n === 1 ? 'auditoría' : 'auditorías'} · {delta >= 0 ? '+' : ''}{delta.toFixed(2)} vs. el promedio general ({chartStats.avg.toFixed(2)})
-                      </p>
-                      <div className="bar-track">
-                        <div className="bar-fill" style={{ width: `${(r.avg / 5) * 100}%`, background: SCORE_COLORS[Math.max(0, Math.min(5, Math.round(r.avg)))] }} />
-                      </div>
-                    </div>
-                  )
-                })}
-                <h2>Promedio por fase (1S–5S)</h2>
-                {PHASES.map((p, i) => (
-                  <div className="bar-row" key={p.key}>
-                    <div className="row space-between">
-                      <span>{p.name}</span>
-                      <b>{chartStats.phases[i] === null ? '—' : `${chartStats.phases[i].toFixed(2)} / 5`}</b>
-                    </div>
-                    <div className="bar-track">
-                      <div className="bar-fill" style={{ width: `${((chartStats.phases[i] || 0) / 5) * 100}%`, background: p.color }} />
                     </div>
                   </div>
                 ))}
@@ -628,7 +651,9 @@ export default function App() {
             <div style={{ height: 10 }} />
             <div className="row">
               <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setScreen('history')}>Historial</button>
-              <button className="btn btn-danger" style={{ flex: 1 }} disabled={busy} onClick={() => handleDelete(detail.id)}>Eliminar</button>
+              {isAuditor && (
+                <button className="btn btn-danger" style={{ flex: 1 }} disabled={busy} onClick={() => handleDelete(detail.id)}>Eliminar</button>
+              )}
             </div>
           </div>
         )}

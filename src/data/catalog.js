@@ -11,7 +11,7 @@ export const FOOTER = {
 // Área general -> subáreas. El selector muestra la Subárea y el Área
 // general se llena sola.
 export const AREA_SUBAREAS = {
-  Ensamble: ['M1009 & M1015', 'M1014 & M1018', 'M1020 & M1016', 'Soldadura Manifold'],
+  Ensamble: ['M1009 & M1015', 'M1014 & M1018', 'M1020 & M1016', 'Soldadura Manifold', 'Área de rollos'],
   Horno: ['Entrada / WIP', 'Soldadura & Flux', 'Salida'],
   Dobladora: ['M1090 & M1091 + Thermofit'],
   Empaque: ['Rack empaque & Tarimas', 'Unión & Empaque + WIP'],
@@ -38,6 +38,7 @@ export const SUPERVISORS = [
   'Adalberto Orozco',
   'Ricardo Castrejón',
   'Antonio Azúa',
+  'Jan Gonzalez',
 ]
 
 // Guía de hallazgos bajo cada botón de calificación.
